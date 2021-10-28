@@ -15,6 +15,8 @@ if (!require(devtools)) install.packages("devtools"); library(devtools)         
 if (!require(leaflet)) install.packages("leaflet"); library(leaflet)
 if (!require(htmltools)) install.packages("htmltools"); library(htmltools)
 if (!require(CASMPrePostProcessor)) install_github("rainfallnz/CASMPrePostProcessor",force=TRUE); library(CASMPrePostProcessor)                #Needed to load libraries from github
+source("D:\\Projects\\LWP\\Horizons\\SCAMP\\R\\SCAMP_Horizons\\HorizonsSCAMPFunctions.R")
+
 ```
 
 Set directories and data file names.
@@ -70,12 +72,9 @@ LeachRateLUTFile                   <- file.path(DataDirectory,"LandUseToLossRate
 ZoneLanduseCode_To_ClassLUTFile     <- file.path(DataDirectory,"ZoneLanduseCode_To_ClassLUT.csv")
 #LeachRateLimitsFileName            <- file.path(DataDirectory,"Table14_2.csv")
 PointSourceSiteFile                <- file.path(DataDirectory,"PointSourcesSummaryPC2_YE2012_04.csv")
+ExtraRECReachLabelsFile             <- file.path(DataDirectory,"ManualRiverNameLookUpTableV0.csv")
 
 #Set some excel spreadsheet names
-#HorizonsConsentedLeachRatesFile    <- file.path(DataDirectory,
-#                                                "20200417_Master dairy farm data_Working Document – For Purposes of Scenario ModellingV5.xlsx")
-#CASMCalibrationSummaryFile         <- file.path(DataDirectory,"attenuation summaries.xlsx")  #Provided by Tim Cox, has the node-to-calibrated leachrates relationship for the nodes that he adjusted during calibration
-#CASMInputFile                      <- file.path(DataDirectory,"CASM-Inputs_20200513.xlsx")   #A recent "baseline" scenario version, either with or without the Tim Cox corrections
 PointSourceExtraDataFile           <- file.path(DataDirectory,"pointSourcesTN_2012And2017.xlsx")
 PointSourceYear                    <- "2017" #2012 is the default and has been used for everything except for one scenario, The other option is "2017"
 
@@ -117,19 +116,10 @@ MeasurementSitesSpatial@data$CASMDomain <- (MeasurementSitesSpatial %over% CASMM
 #Save a copy for external use
 writeOGR(MeasurementSitesSpatial,dsn = dirname(MeasurementSitesFile), layer = basename(MeasurementSitesFile),driver='ESRI Shapefile',overwrite_layer = TRUE)
 
-##Load the leach rate maximums set out by Horizons in their plan, and ammended in their proposed plan change 2. This includes a 4 stepped change for year's 1, 5,10 and 20
-#LeachRateLimits <- read.table(LeachRateLimitsFileName, sep=",", header=TRUE)
-
 #Load lookup table of total leaching rates
 LeachRateLookUpTable<- read.csv(LeachRateLUTFile)
 
-
-#PredictorRaster <- stack(PredictorRasterFile)
-  
-#Load the point sources of nitrogen, previously prepared by Caroline Fraser. Unfortunately they don't have nzsgmnt data. note that an error was found for the NZTM.X position of the Fonterra at Pahiatua site. Originally it was 1859554.9 but it should be 1839554.9. This has been corrected on the LWP sharepoint version of the 20200201_HorizonsRiverCriteria.xlsx file, and the Tim Kerr version of the PointSourcesSummaryPC2_YE2012_04.csv file.
-#PointSourceSites <- read.csv(PointSourceSiteFile)
-
-#Alternative source of point source data is from a spreadsheet that Ton prepared. This has 2012 and 2017 data. 2012 data are the default data used for calibration and most scenarios unless specified otherwise.
+#Load point source data from a spreadsheet that Ton prepared. This has 2012 and 2017 data. 2017 data are the default data used.
 PointSourceSites <- read.xlsx(PointSourceExtraDataFile, sheet = PointSourceYear)
 #Select the columns of interest
 PointSourceSites <- PointSourceSites[,c("Site.Name","nzsegment","Annual.load.kg/yr")]
@@ -156,7 +146,7 @@ PointSourceSitesSpatial@data$CASMDomain <- (PointSourceSitesSpatial %over% CASMM
 SubZonePolygons <- readOGR(dsn=dirname(SubZonesFile),layer = basename(SubZonesFile))
 SubZonePolygons <- spTransform(SubZonePolygons,CRS("+init=epsg:2193") )
 
-# #For mapping purposes it is useful to know which CASM model each zone is within. This is (mostly) done by the following few lines. However, for zones bordering two models, it sometimes selects the wrong model domain, so this file has been externally manually edited. Be sure that you want to overwrite it!
+# #For mapping purposes it is useful to know which SCAMP model each zone is within. This is (mostly) done by the following few lines. However, for zones bordering two models, it sometimes selects the wrong model domain, so this file has been externally manually edited. Be sure that you want to overwrite it!
 # #Add an attribute showing which model domain a zone is within
 # SubZonePolygons@data$CASMDomain <- (SubZonePolygons %over% CASMModelDomains)$CASMModel
 # 
@@ -239,26 +229,24 @@ CompleteNetwork <- CompleteNetwork[!duplicated(CompleteNetwork)]
 CompleteSpatialNetwork <- RECReachNetwork[RECReachNetwork$nzsgmnt %in% CompleteNetwork,]
 
 CompleteSpatialNetwork@data$CASMDomain <- (CompleteSpatialNetwork %over% CASMModelDomains)$CASMModel
-```
 
-Then create a tributary table ready for SCAMP
-```{r Create-CASM-tributary-table}
+#and label it
+NetworkLabelList <- SCAMPNetworkLabeller(RECV2Network = CompleteSpatialNetwork,ExtraRECReachLabelsFile=ExtraRECReachLabelsFile)
 
-NetworkLabelList <- NetworkLabeler(CompleteSpatialNetwork)
-
-
-#Add the tributary labels to the network
 SegmentToLabelLookUpTable <- do.call(rbind,NetworkLabelList)
-CompleteSpatialNetwork@data$Label <- SegmentToLabelLookUpTable$Label[match(CompleteSpatialNetwork@data$nzsgmnt,SegmentToLabelLookUpTable$nzsgmnt)]
-#Add the prefixed labels to the network
-SegmentToPrefixedLabelLookUpTable <- ReachLabeler(NetworkLabelList, OutletReachNames)
-CompleteSpatialNetwork@data$PrefixedLabel <- SegmentToPrefixedLabelLookUpTable$Prefixedlabel[match(CompleteSpatialNetwork@data$nzsgmnt,SegmentToPrefixedLabelLookUpTable$nzsgmnt)]
+CompleteSpatialNetwork@data$Label <- SegmentToLabelLookUpTable$name[match(CompleteSpatialNetwork@data$nzsgmnt,SegmentToLabelLookUpTable$nzsegment)]
 
-#Add the 
 #Save the network as a spatial file
 #writeOGR(CompleteSpatialNetwork, dsn = dirname(CASMStreamNetworkFile), layer= basename(CASMStreamNetworkFile), driver="ESRI Shapefile",overwrite_layer=TRUE)
+```
 
-TributaryConnectionTable <- TributaryConnectionCreator(RECNetwork = CompleteSpatialNetwork, TributaryLabelList = NetworkLabelList)
+Then create a tributary table ready for SCAMP and add a Tributary Head Distance attribute to each reach.
+```{r Create-CASM-tributary-table}
+
+#TributaryConnectionTable <- SCAMPTributaryConnectionCreator(RECNetwork = CompleteSpatialNetwork, TributaryLabelList = NetworkLabelList)
+TributaryConnections <- SCAMPTributaryConnectionCreatorV2(RECNetwork = CompleteSpatialNetwork, TributaryLabelList = NetworkLabelList)
+TributaryConnectionTable <- TributaryConnections[[1]]
+CompleteSpatialNetwork <- TributaryConnections[[2]]
 ```
 
 Then create a point source table ready for SCAMP,
@@ -268,20 +256,20 @@ and a diffuse inputs table ready for SCAMP
 #Create a dataframe of just the nzsegment number and the site name
 PointSourceNodes <- PointSourceSites[,c("Site.Name","nzsegment")]
 
-#Standardise the column names so that it matches the expected format in the CASMNodeTablePreparer() function
-names(PointSourceNodes) <- c("NodeName","nzsgmnt")
+#Standardise the column names so that it matches the expected format in the SCAMPNodeTablePreparer() function
+names(PointSourceNodes) <- c("NodeName","nzsegment")
 
-#Prepare the SCAMP table with the bonus nzsgmnt column
-PointSourceTable <- CASMNodeTablePreparer(CASMRECNetwork = CompleteSpatialNetwork, NetworkLabelList = NetworkLabelList, TributaryConnectionTable = TributaryConnectionTable,CASMNodes = PointSourceNodes )
+#Prepare the SCAMP table with the bonus nzsegment column
+PointSourceTable <- SCAMPNodeTablePreparer(SCAMPRECNetwork = CompleteSpatialNetwork, NetworkLabelList = NetworkLabelList, TributaryConnectionTable = TributaryConnectionTable,SCAMPNodes = PointSourceNodes )
 
 #rename the columns to match the SCAMP requirements
-names(PointSourceTable) <- c("nzsgmnt","Point Source Name","Receiving Stream","Location (km)")
+names(PointSourceTable) <- c("nzsegment","Point Source Name","Receiving Stream","Location (km)")
  
 #Need to add the point source load to the table
-PointSourceTable$"Annual Load (kg/yr)" <- round(PointSourceSites$TN.kgpy[match(PointSourceTable$nzsgmnt,PointSourceSites$nzsegment)],0)
+PointSourceTable$"Annual TN Load (kg/yr)" <- round(PointSourceSites$TN.kgpy[match(PointSourceTable$nzsegment,PointSourceSites$nzsegment)],0)
+PointSourceTable$"Annual TP Load (kg/yr)" <- round(NA,0)
 
-#For the native use, not point sources
-#PointSourceTable$"Annual Load (kg/yr)" <- 0
+
 ```
 
 
@@ -291,28 +279,32 @@ PointSourceTable$"Annual Load (kg/yr)" <- round(PointSourceSites$TN.kgpy[match(P
 ```{r Create-SCAMP-measurement-site-table}
 MeasurementSiteNodes <- MeasurementSites[,c("sID","nzsegment")]
 names(MeasurementSiteNodes) <- c("NodeName","nzsgmnt")
-MeasurementSiteTable <- CASMNodeTablePreparer(CASMRECNetwork = CompleteSpatialNetwork, NetworkLabelList = NetworkLabelList, TributaryConnectionTable = TributaryConnectionTable,CASMNodes= MeasurementSiteNodes)
+MeasurementSiteTable <- SCAMPNodeTablePreparer(SCAMPRECNetwork = CompleteSpatialNetwork, NetworkLabelList = NetworkLabelList, TributaryConnectionTable = TributaryConnectionTable,SCAMPNodes= MeasurementSiteNodes)
 
 #rename the columns to match the SCAMP conventions
-names(MeasurementSiteTable) <- c("nzsgmnt","Site Name or No","Target Stream","Downstream Location (km)")
+names(MeasurementSiteTable) <- c("nzsegment","Site Name or No","Target Stream","Downstream Location (km)")
 
 #Add the mean annual flow to the table
-MeasurementSiteTable$"Mean flow (m3/s)" <- round(REC2MeanFlow$QMean[match(MeasurementSiteTable$nzsgmnt, REC2MeanFlow$nzsegment)],1)
+MeasurementSiteTable$"Mean flow (m3/s)" <- round(REC2MeanFlow$QMean[match(MeasurementSiteTable$nzsegment, REC2MeanFlow$nzsegment)],1)
 
 #Add a variety of other fields from the Measurement Site data
-MeasurementSiteTable$'Load (kg/yr)' <- round(MeasurementSites$load[match(MeasurementSiteTable$"Site Name or No", MeasurementSites$sID)],1)
-MeasurementSiteTable$'Load Lci (kg/yr)' <- round(MeasurementSites$load_Lci[match(MeasurementSiteTable$"Site Name or No", MeasurementSites$sID)],1)
-MeasurementSiteTable$'Load Uci (kg/yr)' <- round(MeasurementSites$load_Uci[match(MeasurementSiteTable$"Site Name or No", MeasurementSites$sID)],1)
+MeasurementSiteTable$'TN Load (kg/yr)' <- round(MeasurementSites$load[match(MeasurementSiteTable$"Site Name or No", MeasurementSites$sID)],1)
+MeasurementSiteTable$'TN Load Lci (kg/yr)' <- round(MeasurementSites$load_Lci[match(MeasurementSiteTable$"Site Name or No", MeasurementSites$sID)],1)
+MeasurementSiteTable$'TN Load Uci (kg/yr)' <- round(MeasurementSites$load_Uci[match(MeasurementSiteTable$"Site Name or No", MeasurementSites$sID)],1)
+
+MeasurementSiteTable$'TP Load (kg/yr)' <- round(NA,1)
+MeasurementSiteTable$'TP Load Lci (kg/yr)' <- round(NA,1)
+MeasurementSiteTable$'TP Load Uci (kg/yr)' <- round(NA,1)
 ```
 
 #Repeat for diffuse inputs. This is a special case, because once the points have been found, they need to be joined with all the different landuse/LUC options
 ```{r Create-SCAMP-diffuse-inputs-table}
 #Start with all the diffuse source input nodes. These are the sub-management zone outlets
 DiffuseInputsSiteNodes <- ManagementSubZoneOutletReachesDF
-names(DiffuseInputsSiteNodes) <- c("NodeName","nzsgmnt")
+names(DiffuseInputsSiteNodes) <- c("NodeName","nzsegment")
 
 #Build up the table of tributary names and locations associated with the diffuse source input sites
-DiffuseInputsSiteTable <- CASMNodeTablePreparer(CASMRECNetwork = CompleteSpatialNetwork, NetworkLabelList = NetworkLabelList, TributaryConnectionTable = TributaryConnectionTable,CASMNodes= DiffuseInputsSiteNodes)
+DiffuseInputsSiteTable <- SCAMPNodeTablePreparer(SCAMPRECNetwork = CompleteSpatialNetwork, NetworkLabelList = NetworkLabelList, TributaryConnectionTable = TributaryConnectionTable,SCAMPNodes= DiffuseInputsSiteNodes)
 
 #Now create a bigger version, with a row for each of the different landuse within each sub-management zone
 DiffuseInputsSiteExtendedTable <- SubZoneLanduseSpatialAgg@data
@@ -320,7 +312,7 @@ DiffuseInputsSiteExtendedTable <- SubZoneLanduseSpatialAgg@data
 DiffuseInputsSiteExtendedTable <- dplyr::rename(DiffuseInputsSiteExtendedTable,CombinedClassName = ZoneLndUse)
 
 #Add the locations that we have just previously determined
-DiffuseInputsSiteExtendedTable[,c("TribLocn","TribName")] <- DiffuseInputsSiteTable[match(DiffuseInputsSiteExtendedTable$Zone_Code, DiffuseInputsSiteTable$CASMNodeName),c("TribLocn","TribName")]
+DiffuseInputsSiteExtendedTable[,c("nzsegment","TribLocn","TribName")] <- DiffuseInputsSiteTable[match(DiffuseInputsSiteExtendedTable$Zone_Code, DiffuseInputsSiteTable$SCAMPNodeName),c("nzsegment","TribLocn","TribName")]
 
 #Add the leach rates
 DiffuseLeachRateData <- SCAMPDiffuseLoadTableCreator(ZoneLanduseRaster = ZoneLanduseRaster,LeachRates = LeachRate)
@@ -346,7 +338,7 @@ for(SubZoneIndex in seq_along(UniqueSubZones)) {
 }
 
 #rename the columns to match the SCAMP conventions
-names(DiffuseInputsSiteExtendedTable) <- c("Landuse","Catch_Name","Parent_Cat","Zone_Code","ManageZone","Polygon Land Area (ha)","Node Name","Original location (km)", "Receiving Stream","TN Export Coeff (kg/ha/yr)","TP Export Coeff (kg/ha/yr)","Land Area (ha)","Discharge Location (km)")
+names(DiffuseInputsSiteExtendedTable) <- c("Landuse","Catch_Name","Parent_Cat","Zone_Code","ManageZone","Polygon Land Area (ha)","Node Name","nzsegment","Original location (km)", "Receiving Stream","TN Export Coeff (kg/ha/yr)","TP Export Coeff (kg/ha/yr)","Land Area (ha)","Discharge Location (km)")
 
 SCAMPFormattedDiffuseOutput <- CASMToSCAMP(DiffuseInputsSiteExtendedTable)
 ```
@@ -354,24 +346,29 @@ SCAMPFormattedDiffuseOutput <- CASMToSCAMP(DiffuseInputsSiteExtendedTable)
 
 
 plot
-```{r Plot}
+```{r Plot, eval = FALSE}
 #Reproject the other spatial data to the maps projection ready for plotting
 SpatialData <- list(MeasurementSites=MeasurementSitesSpatial, PointSourceSites=PointSourceSitesSpatial,
                     SubZones=SubZonePolygons,RiverNetwork=CompleteSpatialNetwork)
 reprojected.data.WGS84 <- lapply(SpatialData, spTransform,CRS("+init=epsg:4326"))
 
+#Set the online map source to TOPO NZ maps
+NZTopo250 = 'http://tiles-a.data-cdn.linz.govt.nz/services;key=8ed417cc81ea45a0b92d597307229b80/tiles/v4/layer=52324/EPSG:3857/{z}/{x}/{y}.png'
+NZTopo50 = 'http://tiles-a.data-cdn.linz.govt.nz/services;key=8ed417cc81ea45a0b92d597307229b80/tiles/v4/layer=52343/EPSG:3857/{z}/{x}/{y}.png'
 
 map <- leaflet::leaflet() %>% 
-  leaflet::addProviderTiles(providers$OpenStreetMap) %>%
+    addTiles(urlTemplate = NZTopo250, options = providerTileOptions(maxZoom=14),attribution = "<a href=\"http://https://www.linz.govt.nz/\">LINZ</a>", group = "LINZ Topographic") %>%
+  addTiles(urlTemplate = NZTopo50, options = providerTileOptions(minZoom=14), group = "LINZ Topographic") %>%
+  #leaflet::addProviderTiles(providers$OpenStreetMap) %>%
   setView(lng=175.5,lat=-40.0,zoom=8) %>% 
   addPolygons(data = reprojected.data.WGS84$SubZones, color = "black", weight = 3, fillColor = "transparent", label = ~htmlEscape(Zone_Code)) %>%
   addCircleMarkers(data = reprojected.data.WGS84$MeasurementSites, color = "red",label = ~htmlEscape(sID)) %>%
   addCircleMarkers(data = reprojected.data.WGS84$PointSourceSites, color = "black", label = ~htmlEscape(Site.Name)) %>%
-  addPolylines(data = reprojected.data.WGS84$RiverNetwork, color= "blue", label = ~htmlEscape(PrefixedLabel))
+  addPolylines(data = reprojected.data.WGS84$RiverNetwork, color= "blue", label = ~htmlEscape(Label))
 map
 
 #save the mapdata as an R file so that it can be used in an RShinyApp
-saveRDS(reprojected.data.WGS84,file.path(ProjectDirectory,"ShinyApp/Data","SpatialData.RDS"))
+saveRDS(reprojected.data.WGS84,file.path(ProjectDirectory,"R/SCAMP_Horizons/ShinyApp/Data","SpatialData.RDS"))
 ```
 
 
@@ -386,20 +383,20 @@ Out <- createWorkbook()
 
 addWorksheet(Out, "River Network")
 
-writeData(Out, sheet = "River Network", x = TributaryConnectionTable[c("Tributary Name","Confluence Stream","Confluence Location (km)")])
+writeData(Out, sheet = "River Network", x = TributaryConnectionTable[c("Tributary Name","Total Length (km)","Confluence Stream","Confluence Location (km)")])
 
 addWorksheet(Out, "Point Source")
 
-writeData(Out, sheet = "Point Source", x = PointSourceTable[,-1])
+writeData(Out, sheet = "Point Source", x = PointSourceTable)
 
 addWorksheet(Out, "Water Quality Stations")
 
-writeData(Out, sheet = "Water Quality Stations", x = MeasurementSiteTable[,-1])
+writeData(Out, sheet = "Water Quality Stations", x = MeasurementSiteTable)
 
 addWorksheet(Out, "Diffuse Inputs")
 
 
-writeData(Out, sheet = "Diffuse Inputs", x = DiffuseInputsSiteExtendedTable[,c("Node Name","Receiving Stream","Discharge Location (km)","Land Area (ha)","TN Export Coeff (kg/ha/yr)","TP Export Coeff (kg/ha/yr)")])
+writeData(Out, sheet = "Diffuse Inputs", x = DiffuseInputsSiteExtendedTable[,c("Node Name","nzsegment","Receiving Stream","Discharge Location (km)","Land Area (ha)","TN Export Coeff (kg/ha/yr)","TP Export Coeff (kg/ha/yr)")])
 
 #New sheets for SCAMP
 
@@ -433,7 +430,7 @@ addStyle(Out,sheet = "Catchment WQ Inputs TP",cols=6,rows=2,style=subheadingstyl
 addStyle(Out,sheet = "Catchment WQ Inputs TP",cols=5:19,rows=4:(nrow(SCAMPFormattedDiffuseOutput$NTable)+3),gridExpand = TRUE, style=OnsSD)
 
 
-saveWorkbook(Out, file.path(DataDirectory,"SCAMP-Inputs_HorizonsV0.xlsx"), overwrite = T)
+saveWorkbook(Out, file.path(DataDirectory,"SCAMP-Inputs_HorizonsV1Test.xlsx"), overwrite = T)
 ```
 
 Remember to use:
@@ -448,7 +445,7 @@ To check output is as expected.
  
  Then, as a check, get the load for each zone-landuse-LUC combination, and sum in each zone.
  It would also be good to add a check of total load in catchments upstream of a water quality network being more than the total load measured. If they were less, then the attenuation would have to be greater than 1!
-```{r Check-zone-load-totals}
+```{r Check-zone-load-totals, eval = FALSE}
 #Note that to ensure I am comparing apples with apples, I am using the SubZoneLanduseSpatial data to find the SubZone areas (rather than using the pre-prepared cleaned sub zone spatial data which has been "cleaned" so is slightly different in area!!)
 test <- unionSpatialPolygons(SubZoneLanduseSpatial,IDs = SubZoneLanduseSpatial@data$Zone_Code )
 testid <- sapply(slot(test, "polygons"), function(x) slot(x, "ID"))
