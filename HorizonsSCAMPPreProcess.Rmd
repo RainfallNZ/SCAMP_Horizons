@@ -41,7 +41,8 @@ GISDataDirectory  <- file.path(DataDirectory,"GIS")
 #Get some auxiliary R data file names
 REC_MeanFlowFile  <- file.path(DataDirectory,"REC2MeanFlow.RData")  #This is an RData file
 #NutrientLoadsFile <- file.path(DataDirectory,"N_ExpCoeff_Est_HZ_Feb20.rdata")
-NutrientLoadsFile <- file.path(DataDirectory,"HZLoadEstimates_for2018_June21.xlsx")
+#NutrientLoadsFile <- file.path(DataDirectory,"HZLoadEstimates_for2018_June21.xlsx")
+NutrientLoadsFile <- file.path(DataDirectory,"HZ_ExpCoeff_for2018.rdata")
 
 #Set the various shape files. These are held within the GIS directory in subdirectories with the same name as the shapefile
 REC_rivers <- file.path(GISDataDirectory,"RECV2-Riverlines-Horizons","RECV2-Riverlines-Horizons")
@@ -96,14 +97,19 @@ CASMModelDomains <- readOGR(dsn = dirname(CASMModelDomainFile),layer=basename(CA
 CASMModelDomains <- spTransform(CASMModelDomains,CRS("+init=epsg:2193") )
 
 #Load the Horizon's water quality measurement sites. Originally this was an rdata file prepared by Caroline Fraser and called "HZLoads.
+#The format changed slightly with SCAMP with different column names and different area units. Maintaining backward compatibility was tedious and so was abandoned
 #For SCAMP an excel spreadsheet was provided by Ton via email
-if (file_ext(NutrientLoadsFile) == "rdata") {load(NutrientLoadsFile)} else 
+if (file_ext(NutrientLoadsFile) == "rdata")
+  {NutrientObjectName <- load(NutrientLoadsFile)
+  HZLoads <- get(NutrientObjectName)
+} else 
   if(file_ext(NutrientLoadsFile) %in% c("xlsx","xls")) {
     #Load measurement source data from a spreadsheet that Caroline prepared..
 HZLoads <- read.xlsx(NutrientLoadsFile, sheet = "Exp Coeff - Daily Flows")
+  }
+
 HZLoads$CATCHAREA <- HZLoads$catAreaKM2 * 1000000
 HZLoads <- plyr::rename(HZLoads,replace=c("ExpCoeff" = "ExpCoef","ExpCoeff_Uci" = "ExpCoef_Uci_","ExpCoeff_Lci" = "ExpCoef_Lci_"))
-  }
 #Select just the TN and TP sites
 MeasurementSites <- HZLoads[which(HZLoads$npID %in% c("TN","TP")),]
 
