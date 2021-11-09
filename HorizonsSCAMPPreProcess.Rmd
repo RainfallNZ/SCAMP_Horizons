@@ -5,7 +5,8 @@ output: html_notebook
 
 Load libraries
 ```{r Load-libraries}
-if (!require(rgdal)) install.packages("rgdal"); library(rgdal)   
+if (!require(rgdal)) install.packages("rgdal"); library(rgdal)
+if (!require(tools)) install.packages("tools"); library(tools)
 if (!require(raster)) install.packages("raster"); library(raster)
 if (!require(sp)) install.packages("sp"); library(sp)
 if (!require(spatialEco)) install.packages("spatialEco"); library(spatialEco)
@@ -39,7 +40,8 @@ GISDataDirectory  <- file.path(DataDirectory,"GIS")
 
 #Get some auxiliary R data file names
 REC_MeanFlowFile  <- file.path(DataDirectory,"REC2MeanFlow.RData")  #This is an RData file
-NitrogenLoadsFile <- file.path(DataDirectory,"N_ExpCoeff_Est_HZ_Feb20.rdata")
+#NutrientLoadsFile <- file.path(DataDirectory,"N_ExpCoeff_Est_HZ_Feb20.rdata")
+NutrientLoadsFile <- file.path(DataDirectory,"HZLoadEstimates_for2018_June21.xlsx")
 
 #Set the various shape files. These are held within the GIS directory in subdirectories with the same name as the shapefile
 REC_rivers <- file.path(GISDataDirectory,"RECV2-Riverlines-Horizons","RECV2-Riverlines-Horizons")
@@ -67,16 +69,13 @@ ZoneLanduseRasterFile           <- file.path(GISDataDirectory,"ZoneLanduseRaster
 #Set the various text file names
 OutletReachNamesFile               <- file.path(DataDirectory,"OutletReachNames.csv") 
 LeachRateLUTFile                   <- file.path(DataDirectory,"LandUseToLossRatesV0.csv")
-#MPIClassNameLUTFile                <- file.path(DataDirectory,"MPI_LookupNamesNLosses_v5.csv")
-#LanduseToLanduseLUTFile            <- file.path(DataDirectory,"LanduseToLanduseLookUpTable.csv")
 ZoneLanduseCode_To_ClassLUTFile     <- file.path(DataDirectory,"ZoneLanduseCode_To_ClassLUT.csv")
-#LeachRateLimitsFileName            <- file.path(DataDirectory,"Table14_2.csv")
 PointSourceSiteFile                <- file.path(DataDirectory,"PointSourcesSummaryPC2_YE2012_04.csv")
 ExtraRECReachLabelsFile             <- file.path(DataDirectory,"ManualRiverNameLookUpTableV0.csv")
 
 #Set some excel spreadsheet names
 PointSourceExtraDataFile           <- file.path(DataDirectory,"pointSourcesTN_2012And2017.xlsx")
-PointSourceYear                    <- "2017" #2012 is the default and has been used for everything except for one scenario, The other option is "2017"
+PointSourceYear                    <- "2017" #2012 was used for earlier CASM modelling."
 
 ```
 
@@ -96,10 +95,17 @@ CASMModelDomains <- readOGR(dsn = dirname(CASMModelDomainFile),layer=basename(CA
 #Explicitly set projection to NZTM
 CASMModelDomains <- spTransform(CASMModelDomains,CRS("+init=epsg:2193") )
 
-#Load the Horizon total nitrogen load measurement sites, previously prepared by Caroline Fraser and called "HZLoads
-load(NitrogenLoadsFile)
-#Select just the TN sites
-MeasurementSites <- HZLoads[which(HZLoads$npID=="TN"),]
+#Load the Horizon's water quality measurement sites. Originally this was an rdata file prepared by Caroline Fraser and called "HZLoads.
+#For SCAMP an excel spreadsheet was provided by Ton via email
+if (file_ext(NutrientLoadsFile) == "rdata") {load(NutrientLoadsFile)} else 
+  if(file_ext(NutrientLoadsFile) %in% c("xlsx","xls")) {
+    #Load measurement source data from a spreadsheet that Caroline prepared..
+HZLoads <- read.xlsx(NutrientLoadsFile, sheet = "Exp Coeff - Daily Flows")
+HZLoads$CATCHAREA <- HZLoads$catAreaKM2 * 1000000
+HZLoads <- plyr::rename(HZLoads,replace=c("ExpCoeff" = "ExpCoef","ExpCoeff_Uci" = "ExpCoef_Uci_","ExpCoeff_Lci" = "ExpCoef_Lci_"))
+  }
+#Select just the TN and TP sites
+MeasurementSites <- HZLoads[which(HZLoads$npID %in% c("TN","TP")),]
 
 #Calculate loads as t/y
 MeasurementSites$load <- round(MeasurementSites$ExpCoef * MeasurementSites$CATCHAREA / 10000,2)
@@ -237,7 +243,7 @@ SegmentToLabelLookUpTable <- do.call(rbind,NetworkLabelList)
 CompleteSpatialNetwork@data$Label <- SegmentToLabelLookUpTable$name[match(CompleteSpatialNetwork@data$nzsgmnt,SegmentToLabelLookUpTable$nzsegment)]
 
 #Save the network as a spatial file
-#writeOGR(CompleteSpatialNetwork, dsn = dirname(CASMStreamNetworkFile), layer= basename(CASMStreamNetworkFile), driver="ESRI Shapefile",overwrite_layer=TRUE)
+writeOGR(CompleteSpatialNetwork, dsn = dirname(CASMStreamNetworkFile), layer= basename(CASMStreamNetworkFile), driver="ESRI Shapefile",overwrite_layer=TRUE)
 ```
 
 Then create a tributary table ready for SCAMP and add a Tributary Head Distance attribute to each reach.
@@ -277,7 +283,7 @@ PointSourceTable$"Annual TP Load (kg/yr)" <- round(NA,0)
 
 #Repeat for the measurement sites
 ```{r Create-SCAMP-measurement-site-table}
-MeasurementSiteNodes <- MeasurementSites[,c("sID","nzsegment")]
+MeasurementSiteNodes <- unique(MeasurementSites[,c("sID","nzsegment")])
 names(MeasurementSiteNodes) <- c("NodeName","nzsgmnt")
 MeasurementSiteTable <- SCAMPNodeTablePreparer(SCAMPRECNetwork = CompleteSpatialNetwork, NetworkLabelList = NetworkLabelList, TributaryConnectionTable = TributaryConnectionTable,SCAMPNodes= MeasurementSiteNodes)
 
@@ -288,13 +294,20 @@ names(MeasurementSiteTable) <- c("nzsegment","Site Name or No","Target Stream","
 MeasurementSiteTable$"Mean flow (m3/s)" <- round(REC2MeanFlow$QMean[match(MeasurementSiteTable$nzsegment, REC2MeanFlow$nzsegment)],1)
 
 #Add a variety of other fields from the Measurement Site data
-MeasurementSiteTable$'TN Load (kg/yr)' <- round(MeasurementSites$load[match(MeasurementSiteTable$"Site Name or No", MeasurementSites$sID)],1)
-MeasurementSiteTable$'TN Load Lci (kg/yr)' <- round(MeasurementSites$load_Lci[match(MeasurementSiteTable$"Site Name or No", MeasurementSites$sID)],1)
-MeasurementSiteTable$'TN Load Uci (kg/yr)' <- round(MeasurementSites$load_Uci[match(MeasurementSiteTable$"Site Name or No", MeasurementSites$sID)],1)
+#TN data first
+TNMeasurementSites <- MeasurementSites[which(MeasurementSites$npID == "TN"),]
+MeasurementSiteTable$'TN Load (kg/yr)' <- round(TNMeasurementSites$load[match(MeasurementSiteTable$"Site Name or No", TNMeasurementSites$sID)],1)
+MeasurementSiteTable$'TN Load Lci (kg/yr)' <- round(TNMeasurementSites$load_Lci[match(MeasurementSiteTable$"Site Name or No", TNMeasurementSites$sID)],1)
+MeasurementSiteTable$'TN Load Uci (kg/yr)' <- round(TNMeasurementSites$load_Uci[match(MeasurementSiteTable$"Site Name or No", TNMeasurementSites$sID)],1)
 
-MeasurementSiteTable$'TP Load (kg/yr)' <- round(NA,1)
-MeasurementSiteTable$'TP Load Lci (kg/yr)' <- round(NA,1)
-MeasurementSiteTable$'TP Load Uci (kg/yr)' <- round(NA,1)
+#Then TP data
+TPMeasurementSites <- MeasurementSites[which(MeasurementSites$npID == "TP"),]
+MeasurementSiteTable$'TP Load (kg/yr)' <- round(TPMeasurementSites$load[match(MeasurementSiteTable$"Site Name or No", TPMeasurementSites$sID)],2)
+MeasurementSiteTable$'TP Load Lci (kg/yr)' <- round(TPMeasurementSites$load_Lci[match(MeasurementSiteTable$"Site Name or No", TPMeasurementSites$sID)],2)
+MeasurementSiteTable$'TP Load Uci (kg/yr)' <- round(TPMeasurementSites$load_Uci[match(MeasurementSiteTable$"Site Name or No", TPMeasurementSites$sID)],2)
+
+#Add a "FlowClass" parameter which defines whether the nutrient loads were derived using observed flow data (Obs) or modeled from relationships between spot gaugings and other sites (Mod). Assume that TP and TN are the same.
+MeasurementSiteTable$FlowClass <- MeasurementSites$FlowClass[match(MeasurementSiteTable$"Site Name or No", MeasurementSites$sID)]
 ```
 
 #Repeat for diffuse inputs. This is a special case, because once the points have been found, they need to be joined with all the different landuse/LUC options
@@ -430,7 +443,7 @@ addStyle(Out,sheet = "Catchment WQ Inputs TP",cols=6,rows=2,style=subheadingstyl
 addStyle(Out,sheet = "Catchment WQ Inputs TP",cols=5:19,rows=4:(nrow(SCAMPFormattedDiffuseOutput$NTable)+3),gridExpand = TRUE, style=OnsSD)
 
 
-saveWorkbook(Out, file.path(DataDirectory,"SCAMP-Inputs_HorizonsV1Test.xlsx"), overwrite = T)
+saveWorkbook(Out, file.path(DataDirectory,"SCAMP-Inputs_HorizonsV2Test.xlsx"), overwrite = T)
 ```
 
 Remember to use:
