@@ -27,7 +27,7 @@ Spatial shape files (either points, lines or polygons) in ESRI format
 Raster files in geotif format
 Text files in comma separated variable format
 
-Note that some of these are filenames of files that are created by the script, or, confusingly, may be created if deemed necesary.
+Note that some of these are names of files that are created by the script, or, confusingly, may be created if deemed necessary.
 ```{r Set-directories-and-filenames}
 #Set the project directory
 ProjectDirectory <- "D:\\Projects\\LWP\\Horizons\\SCAMP"       #Tim Kerr's Windows Home laptop
@@ -71,12 +71,8 @@ ZoneLanduseRasterFile           <- file.path(GISDataDirectory,"ZoneLanduseRaster
 OutletReachNamesFile               <- file.path(DataDirectory,"OutletReachNames.csv") 
 LeachRateLUTFile                   <- file.path(DataDirectory,"LandUseToLossRatesV0.csv")
 ZoneLanduseCode_To_ClassLUTFile     <- file.path(DataDirectory,"ZoneLanduseCode_To_ClassLUT.csv")
-PointSourceSiteFile                <- file.path(DataDirectory,"PointSourcesSummaryPC2_YE2012_04.csv")
-ExtraRECReachLabelsFile             <- file.path(DataDirectory,"ManualRiverNameLookUpTableV0.csv")
-
-#Set some excel spreadsheet names
-PointSourceExtraDataFile           <- file.path(DataDirectory,"pointSourcesTN_2012And2017.xlsx")
-PointSourceYear                    <- "2017" #2012 was used for earlier CASM modelling."
+PointSourceDataFile                <- file.path(DataDirectory,"PointSourcesSummary_YE2018_01.csv")
+ExtraRECReachLabelsFile             <- file.path(DataDirectory,"ManualRiverNameLookUpTableV1.csv")
 
 ```
 
@@ -131,18 +127,16 @@ writeOGR(MeasurementSitesSpatial,dsn = dirname(MeasurementSitesFile), layer = ba
 #Load lookup table of total leaching rates
 LeachRateLookUpTable<- read.csv(LeachRateLUTFile)
 
-#Load point source data from a spreadsheet that Ton prepared. This has 2012 and 2017 data. 2017 data are the default data used.
-PointSourceSites <- read.xlsx(PointSourceExtraDataFile, sheet = PointSourceYear)
+#Load point source data from a table that Caroline has provided
+PointSourceSites <- read.csv(PointSourceDataFile)
+
+#PointSourceSites <- read.xlsx(PointSourceExtraDataFile, sheet = PointSourceYear)
 #Select the columns of interest
-PointSourceSites <- PointSourceSites[,c("Site.Name","nzsegment","Annual.load.kg/yr")]
-#rename the columns to match those used in the original PointSourceSiteFile "PointSourcesSummaryPC2_YE2012_04.csv"
-PointSourceSites <- plyr::rename(PointSourceSites,replace=c("Annual.load.kg/yr" = "TN.kgpy"))
-#Select the rows of interest
-PointSourceSites <- PointSourceSites[!(is.na(PointSourceSites$"TN.kgpy")|PointSourceSites$"TN.kgpy" ==0),]
+PointSourceSites <- PointSourceSites[,c("Site.Name","nzsegment","TP_kgpy","TN_kgpy","NZTM.X","NZTM.Y")]
 
 #Add spatial data, derived from the down coordinate for the REC reach
-PointSourceSites$NZTM.X <- RECReachNetwork$dwncrdX[match(PointSourceSites$nzsegment,RECReachNetwork$nzsgmnt)]
-PointSourceSites$NZTM.Y <- RECReachNetwork$dwncrdY[match(PointSourceSites$nzsegment,RECReachNetwork$nzsgmnt)]
+#PointSourceSites$NZTM.X <- RECReachNetwork$dwncrdX[match(PointSourceSites$nzsegment,RECReachNetwork$nzsgmnt)]
+#PointSourceSites$NZTM.Y <- RECReachNetwork$dwncrdY[match(PointSourceSites$nzsegment,RECReachNetwork$nzsgmnt)]
 
 #Create a spatial points object set to NZTM
 PointSourceSitesSpatial <-SpatialPointsDataFrame(coords = PointSourceSites[,c("NZTM.X","NZTM.Y")],
@@ -278,8 +272,8 @@ PointSourceTable <- SCAMPNodeTablePreparer(SCAMPRECNetwork = CompleteSpatialNetw
 names(PointSourceTable) <- c("nzsegment","Point Source Name","Receiving Stream","Location (km)")
  
 #Need to add the point source load to the table
-PointSourceTable$"Annual TN Load (kg/yr)" <- round(PointSourceSites$TN.kgpy[match(PointSourceTable$nzsegment,PointSourceSites$nzsegment)],0)
-PointSourceTable$"Annual TP Load (kg/yr)" <- round(NA,0)
+PointSourceTable$"Annual TN Load (kg/yr)" <- round(PointSourceSites$TN_kgpy[match(PointSourceTable$nzsegment,PointSourceSites$nzsegment)],0)
+PointSourceTable$"Annual TP Load (kg/yr)" <- round(PointSourceSites$TP_kgpy[match(PointSourceTable$nzsegment,PointSourceSites$nzsegment)],1)
 
 
 ```
@@ -449,7 +443,7 @@ addStyle(Out,sheet = "Catchment WQ Inputs TP",cols=6,rows=2,style=subheadingstyl
 addStyle(Out,sheet = "Catchment WQ Inputs TP",cols=5:19,rows=4:(nrow(SCAMPFormattedDiffuseOutput$NTable)+3),gridExpand = TRUE, style=OnsSD)
 
 
-saveWorkbook(Out, file.path(DataDirectory,"SCAMP-Inputs_HorizonsV2Test.xlsx"), overwrite = T)
+saveWorkbook(Out, file.path(DataDirectory,"SCAMP-Inputs_HorizonsV4Test.xlsx"), overwrite = T)
 ```
 
 Remember to use:
