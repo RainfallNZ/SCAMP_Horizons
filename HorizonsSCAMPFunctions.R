@@ -47,7 +47,7 @@ SCAMPLeachRateRasterCreator <- function(LanduseData=SubZoneLanduseLUCShapeFileNa
 #'@export
 
 SCAMPZoneLanduseRasterCreator <- function(ZoneLandusePolygons=SubZoneLanduseSpatial,LeachRates=LeachRateRaster){
-  
+
   #Convert the "ZoneLndUse" name into levels
   ZoneLandusePolygons$ZoneLndUse <- as.factor(ZoneLandusePolygons$ZoneLndUse)
   
@@ -119,12 +119,12 @@ CASMToSCAMP <- function(CASMData = DiffuseInputsSiteExtendedTable){
   
   #Create the area distribution table
   #Go from long to wide three times using the Land use variables.
-  AreaTable <- as.data.frame(pivot_wider(CASMData,id_cols=c('Catchment Name'),names_from=Landuse,values_from='Land Area (ha)'))
+  AreaTable <- as.data.frame(pivot_wider(CASMData,id_cols=c('Catchment Name'),names_from=Landuse,values_from='Land Area (ha)',values_fn=first,values_fill = 0))
   
   Landuses <- names(AreaTable)[-1]
   
   #Replace NA with 0 for the Landuse values
-  AreaTable[,Landuses][is.na(AreaTable[,Landuses])] <- 0
+  #AreaTable[,Landuses][is.na(AreaTable[,Landuses])] <- 0
   
   #Calculate total land in each node area
   AreaTable[,'Drainage Area (ha)'] <- rowSums(AreaTable[,Landuses],na.rm=TRUE)
@@ -144,15 +144,15 @@ CASMToSCAMP <- function(CASMData = DiffuseInputsSiteExtendedTable){
   #Re-order the columns to match the SCAMP specification
   AreaTable <- AreaTable[,c('SCAMPBasin','Catchment Name','Receiving Stream Name','Receiving Stream Location (km)','Drainage Area (ha)',
                             "CON","FOR","DAI","SBD","HORT","VEG","URB","TRAN","HYDR","LIF","OAN","ARA","OTH","UKN")]
-  AreaTable <- AreaTable[order(AreaTable$SCAMPBasin,AreaTable$'Receiving Stream Name'),]
+  AreaTable <- AreaTable[order(AreaTable$SCAMPBasin,AreaTable$'Receiving Stream Name',AreaTable$'Receiving Stream Location (km)'),]
   
   #create an N Export Coefficients table
-  NTable <- as.data.frame(pivot_wider(CASMData,id_cols=c('Catchment Name'),names_from=Landuse,values_from='TN Export Coeff (kg/ha/yr)'))
+  NTable <- as.data.frame(pivot_wider(CASMData,id_cols=c('Catchment Name'),names_from=Landuse,values_from='TN Export Coeff (kg/ha/yr)',values_fn = first, values_fill = 0 ))
   
   Landuses <- names(NTable)[-1]
   
   #Replace NA with 0 for the Landuse values
-  NTable[,Landuses][is.na(NTable[,Landuses])] <- 0
+  #NTable[,Landuses][is.na(NTable[,Landuses])] <- 0
   
   #Stick the Receiving Stream and receiving stream location back on. Use the first match for the receiving stream loaction
   NTable$'Receiving Stream Name' <- CASMData$'Receiving Stream'[match(NTable$'Catchment Name', CASMData$'Catchment Name')]
@@ -163,15 +163,15 @@ CASMToSCAMP <- function(CASMData = DiffuseInputsSiteExtendedTable){
   #Re-order the columns to match the SCAMP specification
   NTable <- NTable[,c('SCAMPBasin','Catchment Name','Receiving Stream Name','Receiving Stream Location (km)',
                       "CON","FOR","DAI","SBD","HORT","VEG","URB","TRAN","HYDR","LIF","OAN","ARA","OTH","UKN")]
-  NTable <- NTable[order(NTable$SCAMPBasin,NTable$'Receiving Stream Name'),]
+  NTable <- NTable[order(NTable$SCAMPBasin,NTable$'Receiving Stream Name',NTable$'Receiving Stream Location (km)'),]
   
   #create a P Export coefficients table
-  PTable <- as.data.frame(pivot_wider(CASMData,id_cols=c('Catchment Name'),names_from=Landuse,values_from='TP Export Coeff (kg/ha/yr)'))
+  PTable <- as.data.frame(pivot_wider(CASMData,id_cols=c('Catchment Name'),names_from=Landuse,values_from='TP Export Coeff (kg/ha/yr)',values_fn = first, values_fill = 0 ))
   
   Landuses <- names(PTable)[-1]
   
   #Replace NA with 0 for the Landuse values
-  PTable[,Landuses][is.na(PTable[,Landuses])] <- 0
+  #PTable[,Landuses][is.na(PTable[,Landuses])] <- 0
   
   #Stick the Receiving Stream and receiving stream location back on. Use the first match for the receiving stream loaction
   PTable$'Receiving Stream Name' <- CASMData$'Receiving Stream'[match(PTable$'Catchment Name', CASMData$'Catchment Name')]
@@ -182,7 +182,7 @@ CASMToSCAMP <- function(CASMData = DiffuseInputsSiteExtendedTable){
   #Re-order the columns to match the SCAMP specification
   PTable <- PTable[,c('SCAMPBasin','Catchment Name','Receiving Stream Name','Receiving Stream Location (km)',
                       "CON","FOR","DAI","SBD","HORT","VEG","URB","TRAN","HYDR","LIF","OAN","ARA","OTH","UKN")]
-  PTable <- PTable[order(PTable$SCAMPBasin,PTable$'Receiving Stream Name'),]
+  PTable <- PTable[order(PTable$SCAMPBasin,PTable$'Receiving Stream Name',PTable$'Receiving Stream Location (km)'),]
   
   return(list(AreaTable = AreaTable, NTable = NTable, PTable = PTable))
   
@@ -617,6 +617,7 @@ SCAMPTributaryConnectionCreatorV2 <- function(RECNetwork = CompleteSpatialNetwor
     #for each tributary find the maximum TribHeadDist attribute from the REC data, the REC reach immediately downstream of the tributary, and the tributary label of the REC reach that is immediately downstream. This builds a matrix of 4 numbers for each tributary, giving the minimum LENGTHD, the lowest nzsgmnt, the highest nzsgmnt below the tributary, and the label of the tributary below (i.e. the confluence name)
     AllDistances <- sapply(UniqueTribs, function(TribLabel) {
       
+      #if (TribLabel == "Oroua River") browser()
       #Get the REC data for the current tributary
       ReachData <- RECNetwork[RECNetwork$nzsegment %in% CatchmentTribLabels$nzsegment[CatchmentTribLabels$label == TribLabel],]
       

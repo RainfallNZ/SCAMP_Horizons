@@ -48,16 +48,17 @@ NutrientLoadsFile <- file.path(DataDirectory,"HZ_ExpCoeff_for2018.rdata")
 REC_rivers <- file.path(GISDataDirectory,"RECV2-Riverlines-Horizons","RECV2-Riverlines-Horizons")
 #REC data is available from the MfE data service. See https://data.mfe.govt.nz/layer/51826-river-environment-classification-manawatu-2010/ and https://data.mfe.govt.nz/layer/51847-river-environment-classification-watershed-manawatu-2010/
 
-SubZonesFile                       <- file.path(GISDataDirectory,"Water_Management_Subzones_cleaned","Water_Management_Subzones_cleaned")
-LanduseShapeFile                    <- file.path(GISDataDirectory,"Horizons_Landuse","Horizons_LanduseV3")
-SubZoneLanduseShapeFile         <- file.path(GISDataDirectory,"ZoneLanduse","ZoneLanduse")                   #May be created if necessary in QGIS by interesectiong LandUse and Subzone spatial data
-SubZoneLanduseAggShapeFile         <- file.path(GISDataDirectory,"ZoneLanduse","ZoneLanduseAgg")
+#The SubZonesFile was pre-prepared in QGIS. Originally it was just the Horizons sub zones, but Version 2 includes some additional zones created to match
+#some of the measurement sites that were otherwise near the middle of a subzone. Requested by Tim Cox.
+SubZonesFile                       <- file.path(GISDataDirectory,"Water_Management_Subzones_cleaned","Water_Management_Subzones_cleanedV2")
+#LanduseShapeFile                    <- file.path(GISDataDirectory,"Horizons_Landuse","Horizons_LanduseV3")
+SubZoneLanduseShapeFile         <- file.path(GISDataDirectory,"ZoneLanduse","ZoneLanduseV2")                   #May be created if necessary in QGIS by interesectiong LandUse and Subzone spatial data
+SubZoneLanduseAggShapeFile         <- file.path(GISDataDirectory,"ZoneLanduse","ZoneLanduseAggV2")
 
 CASMModelDomainFile                <- file.path(GISDataDirectory,"CASMModelDomains","CASMModelDomains")
 
 MeasurementSitesFile               <- file.path(GISDataDirectory,"MeasurementSites","MeasurementSites")               #An output filename
 PointSourceSitesFile               <- file.path(GISDataDirectory,"PointSourceSites","PointSourceSites")                #An output filename
-WaterManagementZonesForMappingFile <- file.path(GISDataDirectory,"WaterManagementZonesForMapping","WaterManagementZonesForMapping")   #An output filename
 CASMStreamNetworkFile              <- file.path(GISDataDirectory,"CASM-StreamNetwork","CASM-StreamNetwork")
 
 #Set the various raster file names
@@ -69,10 +70,10 @@ ZoneLanduseRasterFile           <- file.path(GISDataDirectory,"ZoneLanduseRaster
 
 #Set the various text file names
 OutletReachNamesFile               <- file.path(DataDirectory,"OutletReachNames.csv") 
-LeachRateLUTFile                   <- file.path(DataDirectory,"LandUseToLossRatesV0.csv")
+LeachRateLUTFile                   <- file.path(DataDirectory,"LandUseToLossRatesV1.csv")
 ZoneLanduseCode_To_ClassLUTFile     <- file.path(DataDirectory,"ZoneLanduseCode_To_ClassLUT.csv")
 PointSourceDataFile                <- file.path(DataDirectory,"PointSourcesSummary_YE2018_01.csv")
-ExtraRECReachLabelsFile             <- file.path(DataDirectory,"ManualRiverNameLookUpTableV1.csv")
+ExtraRECReachLabelsFile             <- file.path(DataDirectory,"ManualRiverNameLookUpTableV3.csv")
 
 ```
 
@@ -152,13 +153,6 @@ PointSourceSitesSpatial@data$CASMDomain <- (PointSourceSitesSpatial %over% CASMM
 SubZonePolygons <- readOGR(dsn=dirname(SubZonesFile),layer = basename(SubZonesFile))
 SubZonePolygons <- spTransform(SubZonePolygons,CRS("+init=epsg:2193") )
 
-# #For mapping purposes it is useful to know which SCAMP model each zone is within. This is (mostly) done by the following few lines. However, for zones bordering two models, it sometimes selects the wrong model domain, so this file has been externally manually edited. Be sure that you want to overwrite it!
-# #Add an attribute showing which model domain a zone is within
-# SubZonePolygons@data$CASMDomain <- (SubZonePolygons %over% CASMModelDomains)$CASMModel
-# 
-# #Save a copy for external use
-# writeOGR(SubZonePolygons,dsn = dirname(WaterManagementZonesForMappingFile),layer=basename(WaterManagementZonesForMappingFile),driver='ESRI Shapefile',overwrite_layer = FALSE)
-
 #Load the network outlet reach names lookup table. This has been manually prepared, and may need editing if the network changes to include outlet reaches not yet included in this file
 OutletReachNames <- read.csv(OutletReachNamesFile, stringsAsFactors = FALSE)
 
@@ -177,10 +171,10 @@ LeachRate <- stack(LeachRateRasterFile)
 #**********************************************************
 #If the original leach rate raster file is missing or needs to be re-created then use the following:
 #Takes 5 minutes at 250 m
-
-#LeachRate <- SCAMPLeachRateRasterCreator(LanduseData = SubZoneLanduseShapeFile,
-#                                   LeachRateData = LeachRateLUTFile)
-
+# 
+# LeachRate <- SCAMPLeachRateRasterCreator(LanduseData = SubZoneLanduseShapeFile,
+#                                    LeachRateData = LeachRateLUTFile)
+# 
 #And save it for nexttime
 #writeRaster(LeachRate,LeachRateRasterFile,overwrite=TRUE)
 #******************************************************************
@@ -192,28 +186,35 @@ levels(ZoneLanduseRaster)[[1]] <- levels(ZoneLanduseRaster)[[1]][-1,]
 #**********************************************************
 ##If the ZoneLanduseRaster raster file is missing or needs to be re-created then use the following:
 ##Takes 5 minutes at 250 m
-
-#ZoneLanduseRaster <- SCAMPZoneLanduseRasterCreator(ZoneLandusePolygons = SubZoneLanduseSpatialAgg,LeachRates = LeachRate)
-
-#Save a copy for later
-#writeRaster(ZoneLanduseRaster,ZoneLanduseRasterFile,overwrite=TRUE)
-
-#And save a levels-to-class name look up table
-#write.table(levels(ZoneLanduseRaster),ZoneLanduseCode_To_ClassLUTFile,sep=",",quote=FALSE, row.names=FALSE)
+# 
+# ZoneLanduseRaster <- SCAMPZoneLanduseRasterCreator(ZoneLandusePolygons = SubZoneLanduseSpatialAgg,LeachRates = LeachRate)
+# 
+# #Save a copy for later
+# writeRaster(ZoneLanduseRaster,ZoneLanduseRasterFile,overwrite=TRUE)
+# 
+# #And save a levels-to-class name look up table
+# write.table(levels(ZoneLanduseRaster),ZoneLanduseCode_To_ClassLUTFile,sep=",",quote=FALSE, row.names=FALSE)
 #******************************************************************
 ```
 
 
 Get the "nzsgmnt" attributes of the lowest reach in each of the management subzones
 ```{r Get-lowest-reach-attributes}
-SubZoneOfEachReach <- RECReachNetwork %over% SubZonePolygons #Note this takes about a minute to do
-RECReachNetwork$SubZoneCode <- SubZoneOfEachReach$Zone_Code
+#SubZoneOfEachReach <- RECReachNetwork %over% SubZonePolygons #Note this takes about a minute to do
+
+#Suspect the above is not working quite right as it seems to be missing lines that intersect the zone polygon. 
+SubZoneOfEachReach <- over(SubZonePolygons,RECReachNetwork,returnList = TRUE)
+names(SubZoneOfEachReach) <- SubZonePolygons$Zone_Code
+
+#RECReachNetwork$SubZoneCode <- SubZoneOfEachReach$Zone_Code
 
 #Work through each management zone to find the reach with the greatest distance to the headwater (the hdw_dst attribute). . I tried doing this based on the least largest area (the CUM_ARE attribute) but there were some zero values, I also tried distance to the sea (the LENGTHD attribute, but near the coast I was getting small reaches that were not the main river channel, but were closer to the sea)
 ManagementSubZoneOutletReaches <- lapply(seq_along(SubZonePolygons$Zone_Code), function(SingleSubZoneIndex){
   #browser()
   CurrentSubZone <- SubZonePolygons$Zone_Code[SingleSubZoneIndex]
-  CurrentSubZoneReaches <- RECReachNetwork[RECReachNetwork$SubZoneCode == CurrentSubZone,]
+  
+  #CurrentSubZoneReaches <- RECReachNetwork[RECReachNetwork$SubZoneCode == CurrentSubZone,]
+  CurrentSubZoneReaches <- SubZoneOfEachReach[[CurrentSubZone]]
   OutletReach <- CurrentSubZoneReaches$nzsgmnt[which.max(CurrentSubZoneReaches$hdw_dst)]
   return(data.frame(SubZone = CurrentSubZone,nzsgmnt = OutletReach))
 })
@@ -319,7 +320,7 @@ names(DiffuseInputsSiteNodes) <- c("NodeName","nzsegment")
 #Build up the table of tributary names and locations associated with the diffuse source input sites
 DiffuseInputsSiteTable <- SCAMPNodeTablePreparer(SCAMPRECNetwork = CompleteSpatialNetwork, NetworkLabelList = NetworkLabelList, TributaryConnectionTable = TributaryConnectionTable,SCAMPNodes= DiffuseInputsSiteNodes)
 
-#Now create a bigger version, with a row for each of the different landuse within each sub-management zone
+#Now create a bigger version, with a row for each of the different land uses within each sub-management zone
 DiffuseInputsSiteExtendedTable <- SubZoneLanduseSpatialAgg@data
 #Rename the "ZoneLndUse" column to "CombinedClassName"
 DiffuseInputsSiteExtendedTable <- dplyr::rename(DiffuseInputsSiteExtendedTable,CombinedClassName = ZoneLndUse)
@@ -351,7 +352,8 @@ for(SubZoneIndex in seq_along(UniqueSubZones)) {
 }
 
 #rename the columns to match the SCAMP conventions
-names(DiffuseInputsSiteExtendedTable) <- c("Landuse","Catch_Name","Parent_Cat","Zone_Code","ManageZone","Polygon Land Area (ha)","Node Name","nzsegment","Original location (km)", "Receiving Stream","TN Export Coeff (kg/ha/yr)","TP Export Coeff (kg/ha/yr)","Land Area (ha)","Discharge Location (km)")
+#names(DiffuseInputsSiteExtendedTable) <- c("Landuse","Catch_Name","Parent_Cat","Zone_Code","ManageZone","Polygon Land Area (ha)","Node Name","nzsegment","Original location (km)", "Receiving Stream","TN Export Coeff (kg/ha/yr)","TP Export Coeff (kg/ha/yr)","Land Area (ha)","Discharge Location (km)")
+names(DiffuseInputsSiteExtendedTable) <- c("Landuse","Catch_Name","Parent_Cat","Zone_CodeHz","ManageZone","Zone_Code","Node Name","nzsegment","Original location (km)", "Receiving Stream","TN Export Coeff (kg/ha/yr)","TP Export Coeff (kg/ha/yr)","Land Area (ha)","Discharge Location (km)")
 
 SCAMPFormattedDiffuseOutput <- CASMToSCAMP(DiffuseInputsSiteExtendedTable)
 ```
@@ -443,7 +445,7 @@ addStyle(Out,sheet = "Catchment WQ Inputs TP",cols=6,rows=2,style=subheadingstyl
 addStyle(Out,sheet = "Catchment WQ Inputs TP",cols=5:19,rows=4:(nrow(SCAMPFormattedDiffuseOutput$NTable)+3),gridExpand = TRUE, style=OnsSD)
 
 
-saveWorkbook(Out, file.path(DataDirectory,"SCAMP-Inputs_HorizonsV4Test.xlsx"), overwrite = T)
+saveWorkbook(Out, file.path(DataDirectory,"SCAMP-Inputs_HorizonsV5Test.xlsx"), overwrite = T)
 ```
 
 Remember to use:
