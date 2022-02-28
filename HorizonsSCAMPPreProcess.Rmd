@@ -70,7 +70,7 @@ ZoneLanduseRasterFile           <- file.path(GISDataDirectory,"ZoneLanduseRaster
 
 #Set the various text file names
 OutletReachNamesFile               <- file.path(DataDirectory,"OutletReachNames.csv") 
-LeachRateLUTFile                   <- file.path(DataDirectory,"LandUseToLossRatesV1.csv")
+LeachRateLUTFile                   <- file.path(DataDirectory,"LandUseToLossRatesV3.csv")
 ZoneLanduseCode_To_ClassLUTFile     <- file.path(DataDirectory,"ZoneLanduseCode_To_ClassLUT.csv")
 PointSourceDataFile                <- file.path(DataDirectory,"PointSourcesSummary_YE2018_01.csv")
 ExtraRECReachLabelsFile             <- file.path(DataDirectory,"ManualRiverNameLookUpTableV3.csv")
@@ -126,7 +126,7 @@ MeasurementSitesSpatial@data$CASMDomain <- (MeasurementSitesSpatial %over% CASMM
 writeOGR(MeasurementSitesSpatial,dsn = dirname(MeasurementSitesFile), layer = basename(MeasurementSitesFile),driver='ESRI Shapefile',overwrite_layer = TRUE)
 
 #Load lookup table of total leaching rates
-LeachRateLookUpTable<- read.csv(LeachRateLUTFile)
+#LeachRateLookUpTable<- read.csv(LeachRateLUTFile)
 
 #Load point source data from a table that Caroline has provided
 PointSourceSites <- read.csv(PointSourceDataFile)
@@ -172,11 +172,11 @@ LeachRate <- stack(LeachRateRasterFile)
 #If the original leach rate raster file is missing or needs to be re-created then use the following:
 #Takes 5 minutes at 250 m
 # 
-# LeachRate <- SCAMPLeachRateRasterCreator(LanduseData = SubZoneLanduseShapeFile,
-#                                    LeachRateData = LeachRateLUTFile)
-# 
+LeachRate <- SCAMPLeachRateRasterCreator(LanduseData = SubZoneLanduseShapeFile,
+                                   LeachRateData = LeachRateLUTFile)
+
 #And save it for nexttime
-#writeRaster(LeachRate,LeachRateRasterFile,overwrite=TRUE)
+writeRaster(LeachRate,LeachRateRasterFile,overwrite=TRUE)
 #******************************************************************
 
 #Load the ZoneLanduseLUC raster if it exists
@@ -445,7 +445,7 @@ addStyle(Out,sheet = "Catchment WQ Inputs TP",cols=6,rows=2,style=subheadingstyl
 addStyle(Out,sheet = "Catchment WQ Inputs TP",cols=5:19,rows=4:(nrow(SCAMPFormattedDiffuseOutput$NTable)+3),gridExpand = TRUE, style=OnsSD)
 
 
-saveWorkbook(Out, file.path(DataDirectory,"SCAMP-Inputs_HorizonsV5Test.xlsx"), overwrite = T)
+saveWorkbook(Out, file.path(DataDirectory,"SCAMP-Inputs_HorizonsV6Test.xlsx"), overwrite = T)
 ```
 
 Remember to use:
