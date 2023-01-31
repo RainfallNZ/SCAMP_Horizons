@@ -83,9 +83,9 @@ PointSourceDataFile                <- file.path(DataDirectory,"PointSourcesSumma
 ExtraRECReachLabelsFile             <- file.path(DataDirectory,"ManualRiverNameLookUpTableV3.csv")
 
 if (any(Scenario %in% c("OurLandWater2015Potential","OurLandWater2035Potential"))){
-  OLWMitigationDataFile = "D:\\Projects\\LWP\\Horizons\\SCAMP\\Data\\OurLandAndWaterMitigationLoadsV2.csv"
-  OLWDairyLandTypesSpatialFile = "D:\\Projects\\LWP\\Horizons\\SCAMP\\Data\\GIS\\OLW_Horizons_TypologiesDairy\\OLW_Horizons_TypologiesDairy.shp"
-  OLWSheepAndBeefLandTypeSpatialDataFile = "D:\\Projects\\LWP\\Horizons\\SCAMP\\Data\\GIS\\OLW_Horizons_TypologiesSnB\\OLW_Horizons_TypologiesSnB.shp"
+  OLWMitigationDataFile = "D:\\Projects\\LWP\\Horizons\\SCAMP\\Data\\OurLandAndWaterMitigationLoadsV3.csv"
+  OLWDairyLandTypesSpatialFile = "D:\\Projects\\LWP\\Horizons\\SCAMP\\Data\\GIS\\OLW_Dairy_Horizons\\OLW_Dairy_Horizons.shp"
+  OLWSheepAndBeefLandTypeSpatialDataFile = "D:\\Projects\\LWP\\Horizons\\SCAMP\\Data\\GIS\\OLW_SnB_Horizons\\OLW_SnB_Horizons.shp"
 }
 
 ```
@@ -179,35 +179,37 @@ SubZoneLanduseSpatialAgg <- readOGR(dsn= dirname(SubZoneLanduseAggShapeFile), la
 SubZoneLanduseSpatialAgg <- spTransform(SubZoneLanduseSpatialAgg,CRS("+init=epsg:2193") )
 
 #Load the leachingrate data if it exists
-LeachRate <- stack(LeachRateRasterFile)
-
-#**********************************************************
-#If the original leach rate raster file is missing or needs to be re-created then use the following:
-#Takes 5 minutes at 250 m
-# 
-LeachRate <- SCAMPLeachRateRasterCreator(LanduseData = SubZoneLanduseShapeFile,
-                                   LeachRateData = LeachRateLUTFile)
-
-#And save it for nexttime
-writeRaster(LeachRate,LeachRateRasterFile,overwrite=TRUE)
-#******************************************************************
+if(file.exists(LeachRateRasterFile)){
+  LeachRate <- stack(LeachRateRasterFile)
+} else {
+  #**********************************************************
+  #If the original leach rate raster file is missing or needs to be re-created then use the following:
+  #Takes 5 minutes at 250 m
+  LeachRate <- SCAMPLeachRateRasterCreator(LanduseData = SubZoneLanduseShapeFile,
+                                           LeachRateData = LeachRateLUTFile)
+  
+  #And save it for nexttime
+  writeRaster(LeachRate,LeachRateRasterFile,overwrite=TRUE)
+  #******************************************************************
+}
 
 #Load the ZoneLanduseLUC raster if it exists
-ZoneLanduseRaster <- raster(ZoneLanduseRasterFile, RAT=TRUE)
-#Annoyingly the attribute table has a bonus line at the beginning when loaded from the tif, so I've removed it to save pain later on
-levels(ZoneLanduseRaster)[[1]] <- levels(ZoneLanduseRaster)[[1]][-1,]
-#**********************************************************
-##If the ZoneLanduseRaster raster file is missing or needs to be re-created then use the following:
-##Takes 5 minutes at 250 m
-# 
-# ZoneLanduseRaster <- SCAMPZoneLanduseRasterCreator(ZoneLandusePolygons = SubZoneLanduseSpatialAgg,LeachRates = LeachRate)
-# 
-# #Save a copy for later
-# writeRaster(ZoneLanduseRaster,ZoneLanduseRasterFile,overwrite=TRUE)
-# 
-# #And save a levels-to-class name look up table
-# write.table(levels(ZoneLanduseRaster),ZoneLanduseCode_To_ClassLUTFile,sep=",",quote=FALSE, row.names=FALSE)
-#******************************************************************
+if(file.exists(ZoneLanduseRasterFile)){
+  ZoneLanduseRaster <- raster(ZoneLanduseRasterFile, RAT=TRUE)
+  #Annoyingly the attribute table has a bonus line at the beginning when loaded from the tif, so I've removed it to save pain later on
+  levels(ZoneLanduseRaster)[[1]] <- levels(ZoneLanduseRaster)[[1]][-1,]
+} else {
+  #**********************************************************
+  #If the ZoneLanduseRaster raster file is missing or needs to be re-created then use the following:
+  #Takes 5 minutes at 250 m
+  ZoneLanduseRaster <- SCAMPZoneLanduseRasterCreator(ZoneLandusePolygons = SubZoneLanduseSpatialAgg,LeachRates = LeachRate)
+  #Save a copy for later
+  writeRaster(ZoneLanduseRaster,ZoneLanduseRasterFile,overwrite=TRUE)
+  
+  #And save a levels-to-class name look up table
+  write.table(levels(ZoneLanduseRaster),ZoneLanduseCode_To_ClassLUTFile,sep=",",quote=FALSE, row.names=FALSE)
+  #******************************************************************
+}
 ```
 
 
