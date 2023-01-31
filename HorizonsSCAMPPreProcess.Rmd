@@ -20,6 +20,13 @@ source("D:\\Projects\\LWP\\Horizons\\SCAMP\\R\\SCAMP_Horizons\\HorizonsSCAMPFunc
 
 ```
 
+Specify any specific scenarios that are to be implemented
+```{r}
+#Scenario <- "Default"
+Scenario <- "OurLandWater2015Potential"
+#Scenario <- "OurLandWater2035Potential"
+```
+
 Set directories and data file names.
 Four main type of files exist:
 R data files
@@ -70,10 +77,16 @@ ZoneLanduseRasterFile           <- file.path(GISDataDirectory,"ZoneLanduseRaster
 
 #Set the various text file names
 OutletReachNamesFile               <- file.path(DataDirectory,"OutletReachNames.csv") 
-LeachRateLUTFile                   <- file.path(DataDirectory,"LandUseToLossRatesV3.csv")
+LeachRateLUTFile                   <- file.path(DataDirectory,"LandUseToLossRatesV2.csv")
 ZoneLanduseCode_To_ClassLUTFile     <- file.path(DataDirectory,"ZoneLanduseCode_To_ClassLUT.csv")
 PointSourceDataFile                <- file.path(DataDirectory,"PointSourcesSummary_YE2018_01.csv")
 ExtraRECReachLabelsFile             <- file.path(DataDirectory,"ManualRiverNameLookUpTableV3.csv")
+
+if (any(Scenario %in% c("OurLandWater2015Potential","OurLandWater2035Potential"))){
+  OLWMitigationDataFile = "D:\\Projects\\LWP\\Horizons\\SCAMP\\Data\\OurLandAndWaterMitigationLoadsV2.csv"
+  OLWDairyLandTypesSpatialFile = "D:\\Projects\\LWP\\Horizons\\SCAMP\\Data\\GIS\\OLW_Horizons_TypologiesDairy\\OLW_Horizons_TypologiesDairy.shp"
+  OLWSheepAndBeefLandTypeSpatialDataFile = "D:\\Projects\\LWP\\Horizons\\SCAMP\\Data\\GIS\\OLW_Horizons_TypologiesSnB\\OLW_Horizons_TypologiesSnB.shp"
+}
 
 ```
 
@@ -328,6 +341,16 @@ DiffuseInputsSiteExtendedTable <- dplyr::rename(DiffuseInputsSiteExtendedTable,C
 #Add the locations that we have just previously determined
 DiffuseInputsSiteExtendedTable[,c("nzsegment","TribLocn","TribName")] <- DiffuseInputsSiteTable[match(DiffuseInputsSiteExtendedTable$Zone_Code, DiffuseInputsSiteTable$SCAMPNodeName),c("nzsegment","TribLocn","TribName")]
 
+if (any(Scenario %in% c("OurLandWater2015Potential","OurLandWater2035Potential"))){
+  MitigationScenario = paste0("Potential",gsub("^[a-z,A-Z]*([0-9]+).*$","\\1",Scenario))
+  #Adjust the LeachRateRasters for the Our Land and Water Mitigation scenarios
+  LeachRate <- LeachRateAdjuster(LeachRates = LeachRate,
+                                       MitigationDataFile = OLWMitigationDataFile,
+                                       MitigationOfInterest = MitigationScenario,
+                                       DairyLandTypeSpatialDataFile = OLWDairyLandTypesSpatialFile,
+                                       SheepAndBeefLandTypeSpatialDataFile = OLWSheepAndBeefLandTypeSpatialDataFile)
+}
+
 #Add the leach rates
 DiffuseLeachRateData <- SCAMPDiffuseLoadTableCreator(ZoneLanduseRaster = ZoneLanduseRaster,LeachRates = LeachRate)
 DiffuseInputsSiteExtendedTable$TN<- DiffuseLeachRateData$TN[match(DiffuseInputsSiteExtendedTable$CombinedClassName,DiffuseLeachRateData$CombinedClassName)]
@@ -445,7 +468,7 @@ addStyle(Out,sheet = "Catchment WQ Inputs TP",cols=6,rows=2,style=subheadingstyl
 addStyle(Out,sheet = "Catchment WQ Inputs TP",cols=5:19,rows=4:(nrow(SCAMPFormattedDiffuseOutput$NTable)+3),gridExpand = TRUE, style=OnsSD)
 
 
-saveWorkbook(Out, file.path(DataDirectory,"SCAMP-Inputs_HorizonsV6Test.xlsx"), overwrite = T)
+saveWorkbook(Out, file.path(DataDirectory,"SCAMP-Inputs_HorizonsV7Test.xlsx"), overwrite = T)
 ```
 
 Remember to use:
