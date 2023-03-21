@@ -79,7 +79,7 @@ ZoneLanduseRasterFile           <- file.path(GISDataDirectory,"ZoneLanduseRaster
 OutletReachNamesFile               <- file.path(DataDirectory,"OutletReachNames.csv") 
 LeachRateLUTFile                   <- file.path(DataDirectory,"LandUseToLossRatesV2.csv")
 ZoneLanduseCode_To_ClassLUTFile     <- file.path(DataDirectory,"ZoneLanduseCode_To_ClassLUT.csv")
-PointSourceDataFile                <- file.path(DataDirectory,"PointSourcesSummary_YE2018_01.csv")
+PointSourceDataFile                <- file.path(DataDirectory,"PointSourcesSummary_YE2022_01.csv")
 ExtraRECReachLabelsFile             <- file.path(DataDirectory,"ManualRiverNameLookUpTableV3.csv")
 
 if (any(Scenario %in% c("OurLandWater2015Potential","OurLandWater2035Potential"))){
