@@ -400,8 +400,12 @@ SCAMPFormattedDiffuseOutput <- CASMToSCAMP(DiffuseInputsSiteExtendedTable)
 plot
 ```{r Plot, eval = FALSE}
 #Reproject the other spatial data to the maps projection ready for plotting
+RandomWQSiteThatTimCoxWantedAdded <-SpatialPointsDataFrame(coords = data.frame("NZTM.X"=1790051,"NZTM.Y"=5500762),
+                                               data = data.frame("sID"="Arawhata at Hokio Beach Rd"),
+                                               proj4string = CRS("+init=epsg:2193"))
+
 SpatialData <- list(MeasurementSites=MeasurementSitesSpatial, PointSourceSites=PointSourceSitesSpatial,
-                    SubZones=SubZonePolygons,RiverNetwork=CompleteSpatialNetwork)
+                    SubZones=SubZonePolygons,RiverNetwork=CompleteSpatialNetwork, BonusExtra=RandomWQSiteThatTimCoxWantedAdded)
 reprojected.data.WGS84 <- lapply(SpatialData, spTransform,CRS("+init=epsg:4326"))
 
 #Set the online map source to TOPO NZ maps
@@ -415,6 +419,7 @@ map <- leaflet::leaflet() %>%
   setView(lng=175.2,lat=-40.6,zoom=10) %>% 
   addPolygons(data = reprojected.data.WGS84$SubZones, color = "black", weight = 3, fillColor = "transparent", label = ~htmlEscape(Zone_Code)) %>%
   addCircleMarkers(data = reprojected.data.WGS84$MeasurementSites, color = "red",label = ~htmlEscape(sID)) %>%
+  addCircleMarkers(data = reprojected.data.WGS84$BonusExtra, color = "red",label = ~htmlEscape(sID)) %>%
   addCircleMarkers(data = reprojected.data.WGS84$PointSourceSites, color = "black", label = ~htmlEscape(Site.Name)) %>%
   addPolylines(data = reprojected.data.WGS84$RiverNetwork, color= "blue", label = ~htmlEscape(Label))
 map

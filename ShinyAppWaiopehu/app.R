@@ -17,6 +17,7 @@ map <- leaflet::leaflet() %>%
   setView(lng=175.3,lat=-40.7,zoom=11) %>%
   addPolygons(data = reprojected.data.WGS84$SubZones, color = "black", weight = 5, fillColor = "transparent", label = ~htmlEscape(Zone_Code)) %>%
   addCircleMarkers(data = reprojected.data.WGS84$MeasurementSites, color = "red",label = ~htmlEscape(sID)) %>%
+  addCircleMarkers(data = reprojected.data.WGS84$BonusExtra, color = "red",label = ~htmlEscape(sID)) %>%
   addCircleMarkers(data = reprojected.data.WGS84$PointSourceSites, color = "black", label = ~htmlEscape(Site.Name)) %>%
   addPolylines(data = reprojected.data.WGS84$RiverNetwork, color= "blue", label = ~htmlEscape(Label))
 
