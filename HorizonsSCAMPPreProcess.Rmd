@@ -22,9 +22,10 @@ source("D:\\Projects\\LWP\\Horizons\\SCAMP\\R\\SCAMP_Horizons\\HorizonsSCAMPFunc
 
 Specify any specific scenarios that are to be implemented
 ```{r}
-#Scenario <- "Default"
-Scenario <- "OurLandWater2015Potential"
+Scenario <- "Default"
+#Scenario <- "OurLandWater2015Potential"
 #Scenario <- "OurLandWater2035Potential"
+#Scenario <- "HorticultureExpansion"
 ```
 
 Set directories and data file names.
@@ -71,16 +72,28 @@ CASMStreamNetworkFile              <- file.path(GISDataDirectory,"CASM-StreamNet
 #Set the various raster file names
 #PredictorRasterFile                <- file.path(GISDataDirectory,"PredictorRaster 250x250.tif")
 #Baseline MPI leach rates
-LeachRateRasterFile                <- file.path(GISDataDirectory,"LeachRateRaster 250x250.tif")
+LeachRateRasterFile               <- file.path(GISDataDirectory,"LeachRateRaster 250x250.tif")
 
-ZoneLanduseRasterFile           <- file.path(GISDataDirectory,"ZoneLanduseRaster 250 x 250.tif")
+ZoneLanduseRasterFile             <- file.path(GISDataDirectory,"ZoneLanduseRaster 250 x 250.tif")
+
+
 
 #Set the various text file names
-OutletReachNamesFile               <- file.path(DataDirectory,"OutletReachNames.csv") 
-LeachRateLUTFile                   <- file.path(DataDirectory,"LandUseToLossRatesV2.csv")
-ZoneLanduseCode_To_ClassLUTFile     <- file.path(DataDirectory,"ZoneLanduseCode_To_ClassLUT.csv")
-PointSourceDataFile                <- file.path(DataDirectory,"PointSourcesSummary_YE2022_01.csv")
-ExtraRECReachLabelsFile             <- file.path(DataDirectory,"ManualRiverNameLookUpTableV3.csv")
+OutletReachNamesFile              <- file.path(DataDirectory,"OutletReachNames.csv") 
+LeachRateLUTFile                  <- file.path(DataDirectory,"LandUseToLossRatesV2.csv")
+#LeachRateLUTFile                  <- file.path(DataDirectory,"LandUseToLossRatesV1.csv")
+ZoneLanduseCode_To_ClassLUTFile   <- file.path(DataDirectory,"ZoneLanduseCode_To_ClassLUT.csv")
+PointSourceDataFile               <- file.path(DataDirectory,"PointSourcesSummary_YE2022_01.csv")
+#PointSourceDataFile               <- file.path(DataDirectory,"PointSourcesSummary_YE2018_01.csv")
+ExtraRECReachLabelsFile           <- file.path(DataDirectory,"ManualRiverNameLookUpTableV3.csv")
+
+if (Scenario == "HorticultureExpansion"){
+  SubZoneLanduseShapeFile         <- file.path(GISDataDirectory,"ZoneLanduse","ZoneLanduseV2_with_hort_expansion_scenario")
+SubZoneLanduseAggShapeFile        <- file.path(GISDataDirectory,"ZoneLanduse","ZoneLanduseAggV2_with_hort_expansion_scenario")
+LeachRateRasterFile               <- file.path(GISDataDirectory,"LeachRateRasterHortExpansion 250x250.tif")
+ZoneLanduseRasterFile             <- file.path(GISDataDirectory,"ZoneLanduseRasterHortExpansion 250 x 250.tif")
+ZoneLanduseCode_To_ClassLUTFile   <- file.path(DataDirectory,"ZoneLanduseCode_To_ClassLUTHortExpansion.csv")
+}
 
 if (any(Scenario %in% c("OurLandWater2015Potential","OurLandWater2035Potential"))){
   OLWMitigationDataFile = "D:\\Projects\\LWP\\Horizons\\SCAMP\\Data\\OurLandAndWaterMitigationLoadsV3.csv"
@@ -94,10 +107,11 @@ if (any(Scenario %in% c("OurLandWater2015Potential","OurLandWater2035Potential")
 load data
 ```{r Load-data}
 #REC data has been sourced from the NIWA website. It has cut down versions of the attribute names, e.g. nzsegment is nzsgmnt. Keep an eye on this when comparing to other data sources that may have the full RECV2 attribute names.
-RECReachNetwork <- readOGR(dsn = dirname(REC_rivers),layer = basename(REC_rivers), stringsAsFactors = FALSE)
-#Explicitly set projection to NZTM
-RECReachNetwork <- spTransform(RECReachNetwork,CRS("+init=epsg:2193") )
-
+if(!exists("RECReachNetwork")){
+  RECReachNetwork <- readOGR(dsn = dirname(REC_rivers),layer = basename(REC_rivers), stringsAsFactors = FALSE)
+  #Explicitly set projection to NZTM
+  RECReachNetwork <- spTransform(RECReachNetwork,CRS("+init=epsg:2193") )
+}
 #Load the mean flow data for the REC V2. This is provided in an rdata file which contains the data frame REC2MeanFlow, with three columns, "nzsegment","QMean", and "us_catarea"
 load(REC_MeanFlowFile)
 
